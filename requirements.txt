@@ -201,9 +201,6 @@ mccabe==0.7.0
 mdit-py-plugins==0.3.0
 mdurl==0.1.0
 mistune==2.0.4
-mkl==2021.4.0
-mkl-random==1.2.4
-mkl-service==2.4.0
 mmh3==4.1.0
 monotonic==1.6
 more-itertools==10.1.0

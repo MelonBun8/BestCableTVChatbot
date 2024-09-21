@@ -8,7 +8,7 @@ from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
 
-load_dotenv() # google API key is in the .env file, loaded in as an environment variable
+# load_dotenv() # google API key is in the .env file, loaded in as an environment variable
 #setting the model to use
 
 llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-latest",temperature = 0.5)

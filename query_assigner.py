@@ -65,3 +65,4 @@ def get_query_classified(user_input, bot_memory, user_session):
 
     result = query_chain_with_history.invoke({"text":user_input}, config = user_session)
     return result
+

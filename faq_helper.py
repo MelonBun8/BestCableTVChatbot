@@ -81,7 +81,7 @@ def get_faq_result(user_input, bot_memory, user_session):
             ("human", "{input}")
         ]
     )
-
+    
     question_answer_chain = create_stuff_documents_chain(llm, prompt)
     rag_chain = create_retrieval_chain(retriever, question_answer_chain)
 

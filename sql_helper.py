@@ -40,6 +40,7 @@ example_SQL_prompt = ChatPromptTemplate.from_messages(
         ("ai", "{result}"),
     ]
 )
+
 few_shot_SQL_prompt = FewShotChatMessagePromptTemplate(
     example_prompt=example_SQL_prompt,
     examples=examples_SQL,
@@ -68,6 +69,7 @@ def get_sql_result(user_input,bot_memory,user_session):
         name="search_proper_nouns",
         description=description,
     )
+    
     tools = [retriever_tool]
     tooly_llm = llm.bind_tools(tools)
 
@@ -149,7 +151,7 @@ def get_sql_result(user_input,bot_memory,user_session):
 
     # my_prompt = PromptTemplate(
     #     template = my_prompt_template, input_variables = ["input","table_info","top_k","history"]
-    #     )
+    #     ) 
 
     with_examples_prompt = ChatPromptTemplate.from_messages(
     [
@@ -164,7 +166,7 @@ def get_sql_result(user_input,bot_memory,user_session):
     execute_query = QuerySQLDataBaseTool(db=db)
     write_query = create_sql_query_chain(llm, db, with_examples_prompt)
 
-    IN_chain = write_query | execute_query
+    # IN_chain = write_query | execute_query
 
     answer_prompt = PromptTemplate.from_template(
         """Given the following user question, corresponding SQL query, and SQL result, answer the user question. Try to stay polite but concise.

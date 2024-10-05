@@ -72,7 +72,7 @@ if original_question := st.chat_input("Ask Away!: "):
 
         elif "TRIPE" in query_class: #Totally irrelevant question
             results = "I'm very sorry, but I can only answer questions about TV, Internet, and phone services, along with information about their providers. Thank you for understanding.";
-            
+
         #faq query
         else:
             results, st.session_state.bot_memory = get_faq_result(original_question, st.session_state.bot_memory, st.session_state.user_session)

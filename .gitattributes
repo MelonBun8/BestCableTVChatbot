@@ -1,1 +1,2 @@
 cities_and_areas_names/index.faiss filter=lfs diff=lfs merge=lfs -text
+*vector_stores filter=lfs diff=lfs merge=lfs -text

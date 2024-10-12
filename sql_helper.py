@@ -55,7 +55,7 @@ def custom_trimmer(my_list):
     else:
         return my_list[-8:]
 
-cities_and_areas = FAISS.load_local("cities_and_areas_names", embeddings = HuggingFaceInstructEmbeddings(), allow_dangerous_deserialization = True)
+cities_and_areas = FAISS.load_local("vector_stores/cities_and_areas_names", embeddings = HuggingFaceInstructEmbeddings(), allow_dangerous_deserialization = True)
 
 def get_sql_result(user_input,bot_memory,user_session):
     # user_session = {"configurable": {"session_id": "abc123"}}

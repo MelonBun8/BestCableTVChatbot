@@ -49,10 +49,6 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, FewShotChatMessagePromptTemplate
 instructor_embeddings = HuggingFaceInstructEmbeddings()
-from dotenv import load_dotenv
-
-load_dotenv()
-llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-latest",temperature = 0.0)
 
 def db_lazy_loader(classified_db):
     if( (f'classified_db') not in st.session_state):
@@ -111,6 +107,8 @@ def database_classifier(user_input):
     relevant_data = db_lazy_loader(grouping)
     return relevant_data
 
+
+
 #re-print entire chat history each time file re-runs.
 for message in st.session_state.history:
     with st.chat_message(message["role"]):
@@ -145,8 +143,7 @@ if original_question := st.chat_input("Ask Away!: "):
 
         #faq query
         else:
-            relevant_data = database_classifier(original_question)
-            results, st.session_state.bot_memory = get_general_result(original_question, st.session_state.bot_memory, st.session_state.user_session, relevant_data)
+            results, st.session_state.bot_memory = get_general_result(original_question, st.session_state.bot_memory, st.session_state.user_session)
 
     with st.chat_message("assistant"):
         st.write_stream(response_generator(results))

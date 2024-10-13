@@ -12,7 +12,6 @@ with sticky_container(mode="top", border=True):
     st.write("Wish to talk to a live agent? click the button below!")
     st.link_button("Call now!", "tel:+18773955851",type="primary")
     
-
 st.session_state.user_session = {"configurable": {"session_id": "abc123"}}
 
 # loading bar for loading up the data
@@ -48,19 +47,56 @@ from langchain_community.embeddings import HuggingFaceInstructEmbeddings
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, FewShotChatMessagePromptTemplate
-instructor_embeddings = HuggingFaceInstructEmbeddings()
+from dotenv import load_dotenv
 
+load_dotenv()
+llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-latest",temperature = 0.0)
+
+def custom_trimmer(my_list):
+    n = len(my_list)
+    if n == 0:
+        return my_list
+    elif n > 0 and n < 7:
+        return my_list[-n:]
+    else:
+        return my_list[-8:]
+    
 def db_lazy_loader(classified_db):
-    if( (f'classified_db') not in st.session_state):
-        temp = FAISS.load_local((f'vector_stores\\{classified_db}'), instructor_embeddings, allow_dangerous_deserialization=True)
-        exec(f'st.session_state.{classified_db} = temp')
+    classified_db = classified_db.strip()
+    if( (f'{classified_db}') not in st.session_state):
+        temp = FAISS.load_local((f'vector_stores\\{classified_db}'), HuggingFaceInstructEmbeddings(), allow_dangerous_deserialization=True)
+        st.session_state[classified_db] = temp
         st.write((classified_db + "has been loaded for the first time!"))
         return temp
     else:
         st.write((classified_db + "Has already been loaded before! Using one in memory..."))
-        return( exec(f'st.session_state.{classified_db}'))
+        temp = st.session_state.get(classified_db, None)
+        if(temp == None):
+            st.write("Error in loading the pre-loaded database")
+        return( temp )
 
-def database_classifier(user_input):
+def database_classifier(user_input, store):
+
+    def get_session_history(session_id: str) -> BaseChatMessageHistory: #a function that returns a BaseChatMessageHistory object, 
+            if session_id not in store:
+                store[session_id] = ChatMessageHistory()
+                return store[session_id]
+                
+            else:
+                # Retrieve current messages
+                current_messages = store[session_id].messages
+                # Keep only the last 4 messages
+                latest_messages = custom_trimmer(current_messages)
+                
+                # Clear existing messages
+                store[session_id].clear()
+                
+                # Add the latest messages back to the history
+                for message in latest_messages:
+                    store[session_id].add_message(message)
+            
+                return store[session_id]
+
     database_index = ['att_bundle', 'att_internet', 'cable_internet', 'direct_tv', 'dish_tv', 'dsl_internet', 'earthlink_internet', 'fiber_internet', 'five_g_internet'
                       ,'fixed_wireless_internet', 'frontier_bundle', 'frontier_internet', 'general_bundle', 'general_internet', 'general_tv', 'hughesnet_internet', 
                       'ipbb_internet', 'optimum_bundle', 'optimum_internet', 'optimum_tv', 'satellite_internet', 'spectrum_bundle', 'spectrum_internet',
@@ -70,6 +106,7 @@ def database_classifier(user_input):
     examples = [
         {"text": "Hi, please tell me about Optimum's internet deals", "output": "optimum_internet"},
         {"text": "How many channels can I get with dish TV?", "output": "dish_tv"},
+        {"text": "Can you tell me about the cheapest TV plan available?", "output": "general_tv"},
     ]
         
     example_prompt = ChatPromptTemplate.from_messages(
@@ -86,11 +123,12 @@ def database_classifier(user_input):
     
     system_template = """You are an intent classifier for a cable TV and Internet Service Provider chatbot. Given a user query and the messaging history as context,
         return the most relevant database name from the following database names, return ONLY the database name itself, no quotation marks.
+        NOTE: For non-specific, general queries, return 'general_bundle', 'general_internet', or 'general_tv' as the database name.
     
         'att_bundle', 'att_internet', 'cable_internet', 'direct_tv', 'dish_tv', 'dsl_internet', 'earthlink_internet', 'fiber_internet', 'five_g_internet'
                       ,'fixed_wireless_internet', 'frontier_bundle', 'frontier_internet', 'general_bundle', 'general_internet', 'general_tv', 'hughesnet_internet', 
                       'ipbb_internet', 'optimum_bundle', 'optimum_internet', 'optimum_tv', 'satellite_internet', 'spectrum_bundle', 'spectrum_internet',
-                      'spectrum_tv', 'verizon_bundle', 'verizon_internet', 'viasat_internet', 'windstream_bundle', 'windstream_internet'    
+                      'spectrum_tv', 'verizon_bundle', 'verizon_internet', 'viasat_internet', 'windstream_bundle', 'windstream_internet'
         """
     
     prompt_template = ChatPromptTemplate.from_messages(
@@ -106,8 +144,6 @@ def database_classifier(user_input):
 
     relevant_data = db_lazy_loader(grouping)
     return relevant_data
-
-
 
 #re-print entire chat history each time file re-runs.
 for message in st.session_state.history:
@@ -143,7 +179,8 @@ if original_question := st.chat_input("Ask Away!: "):
 
         #faq query
         else:
-            results, st.session_state.bot_memory = get_general_result(original_question, st.session_state.bot_memory, st.session_state.user_session)
+            relevant_data = database_classifier(original_question)
+            results, st.session_state.bot_memory = get_general_result(original_question, st.session_state.bot_memory, st.session_state.user_session, relevant_data)
 
     with st.chat_message("assistant"):
         st.write_stream(response_generator(results))

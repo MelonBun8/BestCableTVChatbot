@@ -1,10 +1,7 @@
 import streamlit as st
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.document_loaders import PyPDFLoader
-from dotenv import load_dotenv
-from langchain_community.embeddings import HuggingFaceInstructEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import FAISS
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -16,8 +13,6 @@ import time
 
 #setting the model to use
 llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-latest",temperature = 0.7)
-
-instructor_embeddings = HuggingFaceInstructEmbeddings()
 
 def custom_trimmer(my_list):
     n = len(my_list)

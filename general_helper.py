@@ -1,10 +1,7 @@
 import streamlit as st
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.document_loaders import PyPDFLoader
-from dotenv import load_dotenv
-from langchain_community.embeddings import HuggingFaceInstructEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import FAISS
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -14,21 +11,8 @@ from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
 import time
 
-# load_dotenv() # google API key is in the .env file, loaded in as an environment variable
-# For streamlit community cloud deployment:
-
 #setting the model to use
 llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-latest",temperature = 0.7)
-
-instructor_embeddings = HuggingFaceInstructEmbeddings()
-
-# Loading the PDF file, splitting it and loading the vector store from the file path
-
-# file_path = "FAQ.pdf"
-# loader = PyPDFLoader(file_path)
-# FAQ_PDF = loader.load()
-# text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-# splits = text_splitter.split_documents(FAQ_PDF)
 
 def custom_trimmer(my_list):
     n = len(my_list)
@@ -39,12 +23,10 @@ def custom_trimmer(my_list):
     else:
         return my_list[-8:]
 
-def get_faq_result(user_input, bot_memory, user_session):
+def get_general_result(user_input, bot_memory, user_session, relevant_db):
 
     store = bot_memory
-    
-    vectorDB = FAISS.load_local("FAQ_PDF_VectSto", instructor_embeddings, allow_dangerous_deserialization=True)
-    retriever = vectorDB.as_retriever()
+    retriever = relevant_db.as_retriever()
 
     def get_session_history(session_id: str) -> BaseChatMessageHistory: #a function that returns a BaseChatMessageHistory object, 
             if session_id not in store:
@@ -70,8 +52,10 @@ def get_faq_result(user_input, bot_memory, user_session):
         """You are a helpful, polite AI assistant who will help users find the ideal internet, TV, or bundle deal for them. Use the provided document's data to help aid you in answering their questions. 
         
         Keep the answer concise and to the point while still answering the user's question properly and including all relevant info (such as bundle provider name, cost, speed, which phone number to call, etc.)
-        
-        If the user asks about how you can order, simple guide them to click the call now button above, or give them a call to action to call 877-395-5851 for ordering or more information.""" 
+        Use the history provided to get context and guide your answers.
+
+        If the user asks about how you can order, simple guide them to click the call now button above, or give them a call to action to call 877-395-5851 for ordering or more information.
+        If you truly cannot answer the user question, direct them to call our agents at 877-395-5851 for more information.""" 
         "{context}"
     )
 
@@ -85,11 +69,6 @@ def get_faq_result(user_input, bot_memory, user_session):
     
     question_answer_chain = create_stuff_documents_chain(llm, prompt)
     rag_chain = create_retrieval_chain(retriever, question_answer_chain)
-
-
-    # ______________________________________________________________ M E M O R Y      S E C T I O N ________________________________________________________________________
-
-
     rag_chain_with_history = RunnableWithMessageHistory(
         rag_chain,
         get_session_history,
@@ -97,10 +76,6 @@ def get_faq_result(user_input, bot_memory, user_session):
         history_messages_key="history",
         output_messages_key="answer",
         )
-
-    
-
-# ______________________________________________________________ M E M O R Y      S E C T I O N ________________________________________________________________________
 
     full_output = rag_chain_with_history.invoke({"input": user_input}, config=user_session)
     results = full_output['answer']

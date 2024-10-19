@@ -31,7 +31,7 @@ llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-latest",temperature = 0.0)
 examples_SQL = [
     {"input": "Does Spectrum have any deals in Washington? ", "result": """SELECT provider, phone1, internet_type, speed, phone1, price, availibility, rating FROM plans WHERE state = "Washington" AND provider = "Spectrum" LIMIT 5"""},
     {"input": "Cheapest deals in Frankfort? ", "result": """SELECT provider, phone1, internet_type, speed, phone1, min(price), availibility, rating FROM plans WHERE city='Frankfort' GROUP BY provider LIMIT 5"""},
-    {"input": "I'm looking for the fastest deal in Wyoming", "result": """SELECT provider, phone1, internet_type, max(speed), phone1, price, availibility, rating FROM plans WHERE state='Wyoming' GROUP BY provider LIMIT 5"""}
+    {"input": "Is earthlink available in my area 77803", "result": """SELECT provider, phone1, internet_type, speed, phone1, price, availibility, rating FROM plans WHERE zip=77803 AND provider = "Earthlink" """}
 ]
 
 example_SQL_prompt = ChatPromptTemplate.from_messages(
@@ -55,7 +55,7 @@ def custom_trimmer(my_list):
     else:
         return my_list[-8:]
 
-cities_and_areas = FAISS.load_local("cities_and_areas_names", embeddings = HuggingFaceInstructEmbeddings(), allow_dangerous_deserialization = True)
+cities_and_areas = FAISS.load_local("vector_stores/cities_and_areas_names", embeddings = HuggingFaceInstructEmbeddings(), allow_dangerous_deserialization = True)
 
 def get_sql_result(user_input,bot_memory,user_session):
     # user_session = {"configurable": {"session_id": "abc123"}}
@@ -129,20 +129,22 @@ def get_sql_result(user_input,bot_memory,user_session):
             
                 return store[session_id]
 
-    my_prompt_template = """You are an SQLite expert. Given an input question, create a syntactically correct SQL statement compatible with sqlite.
+    my_prompt_template = """You are an SQLite expert. Given an input question that includes area in some way (either a zip code, city, state, etc.), extract the area and create a syntactically correct SQL statement compatible with sqlite.
     Unless specified, query for at most 5 results using the LIMIT clause.
-    Pay attention to use only the column names you can see in the tables below. Be careful to not query for columns that do not exist. Also, pay attention to which column is in which table.
-    Sometimes you will need to use the history (previous chat messages) to know what the user wants. Keep it in mind as context when generating the query: {history}
+    Pay attention to use only the column names you can see in the tables below. Be careful to not query for columns that do not exist.
+    
+    Use the history (previous chat messages) if needed to get better context, and extract any previously mentioned relevant info (eg: if they've
+    already mentioned their zip code): {history}
+    
     You have access to a SQLite database about internet plans. Each row contains information about specific deals/plans/bundles. 
     When giving information about plans, the query MUST includes the columns: [ provider, phone1, internet_type, speed, phone1, price, availibility, rating ] 
     the state and city should have a capital first letter, while area must be lower case.
 
-    If the query does not mention provider, you MUST use the GROUP BY provider clause to get one unique plan per provider
+    If the query does not mention provider, you MUST use the GROUP BY provider clause to get one unique plan per provider. Else, don't use GROUP BY.
 
     Please return only the statement itself For example: 'SELECT DISTINCT zip FROM internet_type LIMIT 5;'
 
-    Only use the following tables:
-    {table_info}
+    Only use the following tables: {table_info}
 
     Question: {input}
 

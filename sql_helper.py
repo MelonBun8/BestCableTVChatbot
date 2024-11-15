@@ -29,9 +29,10 @@ db = SQLDatabase.from_uri("sqlite:///cable_TV_database.db")
 llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-latest",temperature = 0.0)
 
 examples_SQL = [
-    {"input": "Does Spectrum have any deals in Washington? ", "result": """SELECT provider, phone1, internet_type, speed, phone1, price, availibility, rating FROM plans WHERE state = "Washington" AND provider = "Spectrum" LIMIT 5"""},
-    {"input": "Cheapest deals in Frankfort? ", "result": """SELECT provider, phone1, internet_type, speed, phone1, min(price), availibility, rating FROM plans WHERE city='Frankfort' GROUP BY provider LIMIT 5"""},
-    {"input": "I'm looking for the fastest deal in Wyoming", "result": """SELECT provider, phone1, internet_type, max(speed), phone1, price, availibility, rating FROM plans WHERE state='Wyoming' GROUP BY provider LIMIT 5"""}
+    {"input": "Does Spectrum have any deals in Washington? ", "result": """SELECT provider, phone1, internet_type, speed, phone1, price, availability, rating FROM plans WHERE state = "Washington" AND provider = "Spectrum" LIMIT 5"""},
+    {"input": "Cheapest deals in Frankfurt? ", "result": """SELECT provider, phone1, internet_type, speed, phone1, min(price), availability, rating FROM plans WHERE city='Frankfurt' GROUP BY provider LIMIT 5"""},
+    {"input": "I'm looking for the fastest deal in Wyoming", "result": """SELECT provider, phone1, internet_type, max(speed), phone1, price, availability, rating FROM plans WHERE state='Wyoming' GROUP BY provider LIMIT 5"""},
+    {"input": "Is earthlink available in my area 77803", "result": """SELECT provider, phone1, internet_type, speed, phone1, price, availability, rating FROM plans WHERE zip=77803 AND provider = "Earthlink" """}
 ]
 
 example_SQL_prompt = ChatPromptTemplate.from_messages(
@@ -131,11 +132,16 @@ def get_sql_result(user_input,bot_memory,user_session):
 
     my_prompt_template = """You are an SQLite expert. Given an input question, create a syntactically correct SQL statement compatible with sqlite.
     Unless specified, query for at most 5 results using the LIMIT clause.
-    Pay attention to use only the column names you can see in the tables below. Be careful to not query for columns that do not exist. Also, pay attention to which column is in which table.
-    Sometimes you will need to use the history (previous chat messages) to know what the user wants. Keep it in mind as context when generating the query: {history}
+    Pay attention to use only the column names you can see in the tables below. Be careful to not query for columns that do not exist.
+    
+    Use the history (previous chat messages) if needed to get better context, and extract any previously mentioned relevant info (eg: if they've
+    already mentioned their zip code or city): {history}
+    
     You have access to a SQLite database about internet plans. Each row contains information about specific deals/plans/bundles. 
     When giving information about plans, the query MUST includes the columns: [ provider, phone1, internet_type, speed, phone1, price, availibility, rating ] 
     the state and city should have a capital first letter, while area must be lower case.
+
+    Also check if state or city matches with the zip code.
 
     If the query does not mention provider, you MUST use the GROUP BY provider clause to get one unique plan per provider
 
@@ -176,11 +182,11 @@ def get_sql_result(user_input,bot_memory,user_session):
 
         EXAMPLE:
 
-        Question: "Cheapest deals in Frankfort?"
-        SQL Query: SELECT provider, phone1, internet_type, speed, phone1, min(price), availibility, rating FROM plans WHERE city='Frankfort' GROUP BY provider LIMIT 5
+        Question: "Cheapest deals in Frankfurt?"
+        SQL Query: SELECT provider, phone1, internet_type, speed, phone1, min(price), availability, rating FROM plans WHERE city='Frankfurt' GROUP BY provider LIMIT 5
         SQL Result: [('AT&T', '8772-0935-74', 'DSL , Fiber', '5000 Mbps', '$55/mo', '80.3% availability', 4), ('EarthLink', '8772-0924-67', 'DSL, Fiber, Wireless, Satellite', '1000 Mbps', '$69.95/mo', '80.3% availability', 3), ('HughesNet', '8772-0924-59', 'Satellite', '25 Mbps', '$49.99/mo', '80.3% availability', 3), ('Spectrum', '877-410-3834', 'Hybrid fiber-coaxial', '1000 Mbps', '$49.99/mo', '80.3% availability', 5), ('Viasat', '877-412-0759', 'Satellite', '100 Mbps', '$39.99/mo', '100% availability', 4)]
 
-        Ideal answer: Okay, here are the cheapest plans offered by providers in Frankfort:
+        Ideal answer: Okay, here are the cheapest plans offered by providers in Frankfurt:
 
         **AT&T**
         > 5000 Mbps for $55/mo | Internet Type: DSL , Fiber | Availability: 80.3% | Rating: 4 (of 5 stars) | CALL 8772-0935-74 now for more info!
@@ -192,8 +198,8 @@ def get_sql_result(user_input,bot_memory,user_session):
 
         ----END OF EXAMPLE----
 
-        If the user enters their state, city or area, always prompt them to enter their zip code in the last line. If they have entered their zip code already, ask if you
-        can help them with anything else.
+        If the user enters their state, city or area, always prompt them to enter their zip code in the last line. Zip code should match state, city or area otherwise prompt them to enter zip code again. If they have entered their zip code with the matching state, city or area already, 
+        ask if you can help them with anything else. 
 
     Question: {question}
     SQL Query: {query}

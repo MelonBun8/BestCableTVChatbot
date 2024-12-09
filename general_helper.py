@@ -11,7 +11,6 @@ from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
 import time
 
-#setting the model to use
 llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-latest",temperature = 0.7)
 
 def custom_trimmer(my_list):
@@ -55,6 +54,7 @@ def get_general_result(user_input, bot_memory, user_session, relevant_db):
         Use the history provided to get context and guide your answers.
 
         If the user asks about how you can order, simple guide them to click the call now button above, or give them a call to action to call 877-395-5851 for ordering or more information.
+        If the question is completely irrelevant to TV, internet, Phone, Mobile plans, bundles, and deals, please give an apologetic message informing them that you can only help them with the mentioned topics.
         If you truly cannot answer the user question, direct them to call our agents at 877-395-5851 for more information.""" 
         "{context}"
     )

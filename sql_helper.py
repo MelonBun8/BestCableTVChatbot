@@ -29,9 +29,9 @@ db = SQLDatabase.from_uri("sqlite:///cable_TV_database.db")
 llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-latest",temperature = 0.0)
 
 examples_SQL = [
-    {"input": "Does Spectrum have any deals in Washington? ", "result": """SELECT provider, phone1, internet_type, speed, phone1, price, availibility, rating FROM plans WHERE state = "Washington" AND provider = "Spectrum" LIMIT 5"""},
-    {"input": "Cheapest deals in Frankfort? ", "result": """SELECT provider, phone1, internet_type, speed, phone1, min(price), availibility, rating FROM plans WHERE city='Frankfort' GROUP BY provider LIMIT 5"""},
-    {"input": "Is earthlink available in my area 77803", "result": """SELECT provider, phone1, internet_type, speed, phone1, price, availibility, rating FROM plans WHERE zip=77803 AND provider = "Earthlink" """}
+    {"input": "Does Spectrum have any deals in Washington? ", "result": """SELECT DISTINCT provider, internet_type, speed, phone1, price, rating FROM plans WHERE state = "Washington" AND provider = "Spectrum" LIMIT 5"""},
+    {"input": "Cheapest deals in Frankfort? ", "result": """SELECT DISTINCT provider, internet_type, speed, phone1, min(price), rating FROM plans WHERE city='Frankfort' GROUP BY provider LIMIT 5"""},
+    {"input": "Is earthlink available in my area 77803", "result": """SELECT DISTINCT provider, internet_type, speed, phone1, price, rating FROM plans WHERE zip=77803 AND provider = "Earthlink" """}
 ]
 
 example_SQL_prompt = ChatPromptTemplate.from_messages(
@@ -137,7 +137,7 @@ def get_sql_result(user_input,bot_memory,user_session):
     already mentioned their zip code): {history}
     
     You have access to a SQLite database about internet plans. Each row contains information about specific deals/plans/bundles. 
-    When giving information about plans, the query MUST includes the columns: [ provider, phone1, internet_type, speed, phone1, price, availibility, rating ] 
+    When giving information about plans, the query MUST includes the columns: [ provider, phone1, internet_type, speed, phone1, price, rating ] 
     the state and city should have a capital first letter, while area must be lower case.
 
     If the query does not mention provider, you MUST use the GROUP BY provider clause to get one unique plan per provider. Else, don't use GROUP BY.
@@ -150,10 +150,6 @@ def get_sql_result(user_input,bot_memory,user_session):
 
     Number of Results: {top_k}
     """
-
-    # my_prompt = PromptTemplate(
-    #     template = my_prompt_template, input_variables = ["input","table_info","top_k","history"]
-    #     ) 
 
     with_examples_prompt = ChatPromptTemplate.from_messages(
     [
@@ -179,16 +175,16 @@ def get_sql_result(user_input,bot_memory,user_session):
         EXAMPLE:
 
         Question: "Cheapest deals in Frankfort?"
-        SQL Query: SELECT provider, phone1, internet_type, speed, phone1, min(price), availibility, rating FROM plans WHERE city='Frankfort' GROUP BY provider LIMIT 5
-        SQL Result: [('AT&T', '8772-0935-74', 'DSL , Fiber', '5000 Mbps', '$55/mo', '80.3% availability', 4), ('EarthLink', '8772-0924-67', 'DSL, Fiber, Wireless, Satellite', '1000 Mbps', '$69.95/mo', '80.3% availability', 3), ('HughesNet', '8772-0924-59', 'Satellite', '25 Mbps', '$49.99/mo', '80.3% availability', 3), ('Spectrum', '877-410-3834', 'Hybrid fiber-coaxial', '1000 Mbps', '$49.99/mo', '80.3% availability', 5), ('Viasat', '877-412-0759', 'Satellite', '100 Mbps', '$39.99/mo', '100% availability', 4)]
+        SQL Query: SELECT provider, phone1, internet_type, speed, phone1, min(price), rating FROM plans WHERE city='Frankfort' GROUP BY provider LIMIT 5
+        SQL Result: [('AT&T', '8772-0935-74', 'DSL , Fiber', '5000 Mbps', '$55/mo', 4), ('EarthLink', '8772-0924-67', 'DSL, Fiber, Wireless, Satellite', '1000 Mbps', '$69.95/mo', 3), ('HughesNet', '8772-0924-59', 'Satellite', '25 Mbps', '$49.99/mo', 3), ('Spectrum', '877-410-3834', 'Hybrid fiber-coaxial', '1000 Mbps', '$49.99/mo', 5), ('Viasat', '877-412-0759', 'Satellite', '100 Mbps', '$39.99/mo', 4)]
 
         Ideal answer: Okay, here are the cheapest plans offered by providers in Frankfort:
 
         **AT&T**
-        > 5000 Mbps for $55/mo | Internet Type: DSL , Fiber | Availability: 80.3% | Rating: 4 (of 5 stars) | CALL 8772-0935-74 now for more info!
+        > 5000 Mbps for $55/mo | Internet Type: DSL , Fiber | Rating: 4 (of 5 stars) | CALL 8772-0935-74 now for more info!
 
         **EarthLink**
-        > 1000 Mbps for $69.95/mo | Internet Type: DSL, Fiber, Wireless, Satellite | Availability: 80.3% | Rating: 3 (of 5 stars) | CALL 8772-0924-67 now for more info!
+        > 1000 Mbps for $69.95/mo | Internet Type: DSL, Fiber, Wireless, Satellite | 80.3% | Rating: 3 (of 5 stars) | CALL 8772-0924-67 now for more info!
 
         ... (and so on for remaining plans)
 

@@ -79,6 +79,25 @@ def db_lazy_loader(classified_db):
         if(temp == None):
             st.write("Error in loading the pre-loaded database")
         return( temp )
+#_______________________________________________________________________________________________________________
+from typing import Literal
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.pydantic_v1 import BaseModel, Field
+
+# Data model
+class RouteVectorDBQuery(BaseModel):
+    """Route a user query to the most relevant datasource."""
+
+    datasource: Literal ["att_bundle", "att_internet", "cable_internet", "direct_tv", "dish_tv", "dsl_internet", "earthlink_internet", "fiber_internet", "five_g_internet"
+                      ,"fixed_wireless_internet", "frontier_bundle", "frontier_internet", "general_bundle", "general_internet", "general_tv", "hughesnet_internet", 
+                      "ipbb_internet", "optimum_bundle", "optimum_internet", "optimum_tv", "satellite_internet", "spectrum_bundle", "spectrum_internet",
+                      "spectrum_tv", "verizon_bundle", "verizon_internet", "viasat_internet", "windstream_bundle", "windstream_internet"] = Field(
+        ...,
+        description="Given a user question choose which datasource would be most relevant for answering their question",
+    )
+
+# LLM with function call
+database_classifying_llm = llm.with_structured_output(RouteVectorDBQuery)
 
 # Classifies the general query to the correct database, then calls db_lazy_loader to load the database
 def database_classifier(user_input):
@@ -102,58 +121,35 @@ def database_classifier(user_input):
                     store[session_id].add_message(message)
             
                 return store[session_id]
-
-    database_index = ['att_bundle', 'att_internet', 'cable_internet', 'direct_tv', 'dish_tv', 'dsl_internet', 'earthlink_internet', 'fiber_internet', 'five_g_internet'
-                      ,'fixed_wireless_internet', 'frontier_bundle', 'frontier_internet', 'general_bundle', 'general_internet', 'general_tv', 'hughesnet_internet', 
-                      'ipbb_internet', 'optimum_bundle', 'optimum_internet', 'optimum_tv', 'satellite_internet', 'spectrum_bundle', 'spectrum_internet',
-                      'spectrum_tv', 'verizon_bundle', 'verizon_internet', 'viasat_internet', 'windstream_bundle', 'windstream_internet']
-    
-    
-    examples = [
-        {"input": "Hi, please tell me about Optimum's internet deals", "output": "optimum_internet"},
-        {"input": "How many channels can I get with dish TV?", "output": "dish_tv"},
-        {"input": "Can you tell me about the cheapest TV plan available?", "output": "general_tv"},
-    ]
         
-    example_prompt = ChatPromptTemplate.from_messages(
-        [
-            ("human", "{input}"),
-            ("ai", "{output}"),
-        ]
-    )
-    
-    few_shot_prompt = FewShotChatMessagePromptTemplate(
-        example_prompt=example_prompt,
-        examples=examples,
-    )
-    
-    system_template = """You are an intent classifier for a cable TV and Internet Service Provider chatbot. Given a user query and the messaging history as context,
-        return the most relevant database name from the following database names, return ONLY the database name itself, no quotation marks.
-    
-        Database names:
-        'att_bundle', 'att_internet', 'cable_internet', 'direct_tv', 'dish_tv', 'dsl_internet', 'earthlink_internet', 'fiber_internet', 'five_g_internet'
-                      ,'fixed_wireless_internet', 'frontier_bundle', 'frontier_internet', 'general_bundle', 'general_internet', 'general_tv', 'hughesnet_internet', 
-                      'ipbb_internet', 'optimum_bundle', 'optimum_internet', 'optimum_tv', 'satellite_internet', 'spectrum_bundle', 'spectrum_internet',
-                      'spectrum_tv', 'verizon_bundle', 'verizon_internet', 'viasat_internet', 'windstream_bundle', 'windstream_internet'
 
-        NOTE: You can use the {history} to better understand the user's intent.
-        No matter how irrelevant the query may seem, use the history and user query to classify the query into one of the above databases,
-        DO NOT return an empty string or None. If you are unsure, return 'general_bundle', 'general_internet', or 'general_tv' as the database name.
-        
+    system_template = """You are an intent classifier (through routing) for a cable TV and Internet Service Provider chatbot. Given a user query and the messaging history as context,
+        route it to the most relevant database name. Given below are the database names for reference.
+
+        "att_bundle", "att_internet", "cable_internet", "direct_tv", "dish_tv", "dsl_internet", "earthlink_internet", "fiber_internet", "five_g_internet"
+                      ,"fixed_wireless_internet", "frontier_bundle", "frontier_internet", "general_bundle", "general_internet", "general_tv", "hughesnet_internet", 
+                      "ipbb_internet", "optimum_bundle", "optimum_internet", "optimum_tv", "satellite_internet", "spectrum_bundle", "spectrum_internet",
+                      "spectrum_tv", "verizon_bundle", "verizon_internet", "viasat_internet", "windstream_bundle", "windstream_internet"
+
+        No matter how irrelevant the query may seem, if you are unsure of the intent, route it to one of the general databases 
+        ('general_bundle', 'general_internet', or 'general_tv')
+
+        DO NOT EVER return None, or route to NoneType, ALWAYS route to something.
+
+        Use the {history} to get context and better understand the user's intent.
+
         EXAMPLE:
         User: "Hi, can you please tell me about optimum internet deals?"
-        You: "optimum_internet"
+        You: routed to optimum_internet
         User: "Do they accept ACP?"
-        You: "optimum_internet" (Used the history to classify the query)
+        You: routed to optimum_internet (Used the history to classify the query)
         """
     
     prompt_template = ChatPromptTemplate.from_messages(
-        [("system", system_template), few_shot_prompt, MessagesPlaceholder(variable_name="history"), ("user", "{input}")]
+        [("system", system_template), MessagesPlaceholder(variable_name="history"), ("user", "{input}")]
     )
     
-    parser = StrOutputParser()
-    
-    query_chain = prompt_template | llm | parser
+    query_chain = prompt_template | database_classifying_llm 
 
     query_chain_with_history = RunnableWithMessageHistory(
         query_chain,
@@ -162,13 +158,15 @@ def database_classifier(user_input):
         history_messages_key="history",
         )
     
-    grouping = query_chain_with_history.invoke({"input": user_input}, config=st.session_state.user_session)
+    database_classifier_answer = query_chain_with_history.invoke({"input": user_input}, config=st.session_state.user_session)
     # grouping = query_chain.invoke({"text":user_input})
+    grouping = database_classifier_answer.datasource
     st.write("Grouped into" + grouping)
 
     relevant_data = db_lazy_loader(grouping)
     return relevant_data
 
+#______________________________________________________________________________________________________________________________
 #re-print entire chat history each time file re-runs (to ensure customer can see the entire chat history)
 for message in st.session_state.history:
     with st.chat_message(message["role"]):
@@ -195,6 +193,7 @@ if original_question := st.chat_input("Ask Away!: "):
 
         #area query
         if "AREA" in query_class:
+            st.write("Classified into AREA!!!\n\n")
             results, st.session_state.bot_memory = get_sql_result(original_question, st.session_state.bot_memory, st.session_state.user_session)
             if("FAQ" in results): # If the answer cannot be sufficiently answered by the SQL bot, attempt to answer it with the PDF bot
                 relevant_data = database_classifier(original_question)

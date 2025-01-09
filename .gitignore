@@ -5,4 +5,3 @@ cities_and_areas_names/index.faiss
 cities_and_areas_names/index.pkl
 vector_stores/cities_and_areas_names/index.faiss
 vector_stores/cities_and_areas_names/index.pkl
-.env

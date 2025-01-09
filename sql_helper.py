@@ -7,13 +7,13 @@ from langchain.prompts import PromptTemplate
 from langchain.chains import create_sql_query_chain
 from langchain_community.tools.sql_database.tool import QuerySQLDataBaseTool
 from operator import itemgetter
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate, ChatPromptTemplate, FewShotChatMessagePromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_community.utilities import SQLDatabase
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_community.chat_message_histories import ChatMessageHistory
-from langchain_community.embeddings import HuggingFaceInstructEmbeddings
 from langchain.agents.agent_toolkits import create_retriever_tool
 from langchain_community.vectorstores import FAISS
 from langchain_core.runnables.history import RunnableWithMessageHistory
@@ -23,15 +23,15 @@ from langchain_core.messages import AIMessage, HumanMessage
 # Example of executing SQL statements individually
 # sql_files = ['cable_data.sql']
 db = SQLDatabase.from_uri("sqlite:///cable_TV_database.db")
-
+relevant_embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 # load_dotenv() # google API key is in the .env file, loaded in as an environment variable
 #setting the model to use
 llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-latest",temperature = 0.0)
 
 examples_SQL = [
-    {"input": "Does Spectrum have any deals in Washington? ", "result": """SELECT DISTINCT provider, internet_type, speed, phone1, price, rating FROM plans WHERE state = "Washington" AND provider = "Spectrum" LIMIT 5"""},
-    {"input": "Cheapest deals in Frankfort? ", "result": """SELECT DISTINCT provider, internet_type, speed, phone1, min(price), rating FROM plans WHERE city='Frankfort' GROUP BY provider LIMIT 5"""},
-    {"input": "Is earthlink available in my area 77803", "result": """SELECT DISTINCT provider, internet_type, speed, phone1, price, rating FROM plans WHERE zip=77803 AND provider = "Earthlink" """}
+    {"input": "Does Spectrum have any deals in Washington? ", "result": """SELECT provider, phone1, internet_type, speed, phone1, price, availibility, rating FROM plans WHERE state = "Washington" AND provider = "Spectrum" LIMIT 5"""},
+    {"input": "Cheapest deals in Frankfort? ", "result": """SELECT provider, phone1, internet_type, speed, phone1, min(price), availibility, rating FROM plans WHERE city='Frankfort' GROUP BY provider LIMIT 5"""},
+    {"input": "I'm looking for the fastest deal in Wyoming", "result": """SELECT provider, phone1, internet_type, max(speed), phone1, price, availibility, rating FROM plans WHERE state='Wyoming' GROUP BY provider LIMIT 5"""}
 ]
 
 example_SQL_prompt = ChatPromptTemplate.from_messages(
@@ -55,7 +55,7 @@ def custom_trimmer(my_list):
     else:
         return my_list[-8:]
 
-cities_and_areas = FAISS.load_local("vector_stores/cities_and_areas_names", embeddings = HuggingFaceInstructEmbeddings(), allow_dangerous_deserialization = True)
+cities_and_areas = FAISS.load_local("vector_stores/cities_and_areas_names", embeddings = relevant_embeddings, allow_dangerous_deserialization = True)
 
 def get_sql_result(user_input,bot_memory,user_session):
     # user_session = {"configurable": {"session_id": "abc123"}}
@@ -129,27 +129,29 @@ def get_sql_result(user_input,bot_memory,user_session):
             
                 return store[session_id]
 
-    my_prompt_template = """You are an SQLite expert. Given an input question that includes area in some way (either a zip code, city, state, etc.), extract the area and create a syntactically correct SQL statement compatible with sqlite.
+    my_prompt_template = """You are an SQLite expert. Given an input question, create a syntactically correct SQL statement compatible with sqlite.
     Unless specified, query for at most 5 results using the LIMIT clause.
-    Pay attention to use only the column names you can see in the tables below. Be careful to not query for columns that do not exist.
-    
-    Use the history (previous chat messages) if needed to get better context, and extract any previously mentioned relevant info (eg: if they've
-    already mentioned their zip code): {history}
-    
+    Pay attention to use only the column names you can see in the tables below. Be careful to not query for columns that do not exist. Also, pay attention to which column is in which table.
+    Sometimes you will need to use the history (previous chat messages) to know what the user wants. Keep it in mind as context when generating the query: {history}
     You have access to a SQLite database about internet plans. Each row contains information about specific deals/plans/bundles. 
-    When giving information about plans, the query MUST includes the columns: [ provider, phone1, internet_type, speed, phone1, price, rating ] 
+    When giving information about plans, the query MUST includes the columns: [ provider, phone1, internet_type, speed, phone1, price, availibility, rating ] 
     the state and city should have a capital first letter, while area must be lower case.
 
-    If the query does not mention provider, you MUST use the GROUP BY provider clause to get one unique plan per provider. Else, don't use GROUP BY.
+    If the query does not mention provider, you MUST use the GROUP BY provider clause to get one unique plan per provider
 
     Please return only the statement itself For example: 'SELECT DISTINCT zip FROM internet_type LIMIT 5;'
 
-    Only use the following tables: {table_info}
+    Only use the following tables:
+    {table_info}
 
     Question: {input}
 
     Number of Results: {top_k}
     """
+
+    # my_prompt = PromptTemplate(
+    #     template = my_prompt_template, input_variables = ["input","table_info","top_k","history"]
+    #     ) 
 
     with_examples_prompt = ChatPromptTemplate.from_messages(
     [
@@ -175,16 +177,16 @@ def get_sql_result(user_input,bot_memory,user_session):
         EXAMPLE:
 
         Question: "Cheapest deals in Frankfort?"
-        SQL Query: SELECT provider, phone1, internet_type, speed, phone1, min(price), rating FROM plans WHERE city='Frankfort' GROUP BY provider LIMIT 5
-        SQL Result: [('AT&T', '8772-0935-74', 'DSL , Fiber', '5000 Mbps', '$55/mo', 4), ('EarthLink', '8772-0924-67', 'DSL, Fiber, Wireless, Satellite', '1000 Mbps', '$69.95/mo', 3), ('HughesNet', '8772-0924-59', 'Satellite', '25 Mbps', '$49.99/mo', 3), ('Spectrum', '877-410-3834', 'Hybrid fiber-coaxial', '1000 Mbps', '$49.99/mo', 5), ('Viasat', '877-412-0759', 'Satellite', '100 Mbps', '$39.99/mo', 4)]
+        SQL Query: SELECT provider, phone1, internet_type, speed, phone1, min(price), availibility, rating FROM plans WHERE city='Frankfort' GROUP BY provider LIMIT 5
+        SQL Result: [('AT&T', '8772-0935-74', 'DSL , Fiber', '5000 Mbps', '$55/mo', '80.3% availability', 4), ('EarthLink', '8772-0924-67', 'DSL, Fiber, Wireless, Satellite', '1000 Mbps', '$69.95/mo', '80.3% availability', 3), ('HughesNet', '8772-0924-59', 'Satellite', '25 Mbps', '$49.99/mo', '80.3% availability', 3), ('Spectrum', '877-410-3834', 'Hybrid fiber-coaxial', '1000 Mbps', '$49.99/mo', '80.3% availability', 5), ('Viasat', '877-412-0759', 'Satellite', '100 Mbps', '$39.99/mo', '100% availability', 4)]
 
         Ideal answer: Okay, here are the cheapest plans offered by providers in Frankfort:
 
         **AT&T**
-        > 5000 Mbps for $55/mo | Internet Type: DSL , Fiber | Rating: 4 (of 5 stars) | CALL 8772-0935-74 now for more info!
+        > 5000 Mbps for $55/mo | Internet Type: DSL , Fiber | Availability: 80.3% | Rating: 4 (of 5 stars) | CALL 8772-0935-74 now for more info!
 
         **EarthLink**
-        > 1000 Mbps for $69.95/mo | Internet Type: DSL, Fiber, Wireless, Satellite | 80.3% | Rating: 3 (of 5 stars) | CALL 8772-0924-67 now for more info!
+        > 1000 Mbps for $69.95/mo | Internet Type: DSL, Fiber, Wireless, Satellite | Availability: 80.3% | Rating: 3 (of 5 stars) | CALL 8772-0924-67 now for more info!
 
         ... (and so on for remaining plans)
 

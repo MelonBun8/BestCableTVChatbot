@@ -38,8 +38,9 @@ system_template = """You are an intent classifier for a cable TV and Internet Se
     """
 
 prompt_template = ChatPromptTemplate.from_messages(
-    [("system", system_template), few_shot_prompt, MessagesPlaceholder(variable_name="history"), ("user", "{text}")]
+    [("system", system_template), MessagesPlaceholder(variable_name="history"), ("user", "{text}")]
 )
+#above lines edited to remove few_shot_prompt from the prompt_template, as it was breaking the code.
 
 parser = StrOutputParser()
 

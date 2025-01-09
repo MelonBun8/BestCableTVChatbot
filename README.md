@@ -1,3 +1,6 @@
+![Company Logo](https://scontent.fkhi11-1.fna.fbcdn.net/v/t39.30808-6/337028579_130871173096319_2501211259536333604_n.jpg?_nc_cat=110&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=RwlwtpuUU6AQ7kNvgGAC6v5&_nc_zt=23&_nc_ht=scontent.fkhi11-1.fna&_nc_gid=AUH5UsE6xIf707Zxdx6shFC&oh=00_AYAMlsOaaXXWvk9mNPh-xDCPHSXt_NLGVPQi2r63KsKP1g&oe=678583BD)
+
+
 # BestCableTV Chatbot
 
 A chatbot designed for the BestCableTV website to intelligently handle queries about internet and cable TV packages.
